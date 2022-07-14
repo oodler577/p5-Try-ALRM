@@ -122,6 +122,64 @@ Internally, the I<keywords> are implemented as prototypes and uses the same
 sort of coersion of a lexical bloc to a subroutine reference that is used
 in C<Try::Tiny>.
 
+=head1 EXPORTS
+
+This module exports 3 methods:
+
+=over 4
+
+=item C<try>
+
+=item C<ALRM>
+
+=item C<timeout>
+
+=back
+
+=head2 The C<try> keyword
+
+This module has not yet been tested extensively with C<Try::Tiny>, but in
+order to eliminate the potential for clobbering the exported C<try> method,
+it may be prudent to refer to C<Try::ALRM>'s methods using their fully
+qualified package names, e.g.:
+
+  use strict;
+  use warnings;
+  use Try::ALRM qw/ALRM timeout/; #<~ NB!
+  use Try::Tiny;
+
+  # starts as default, $Try::ALRM::TIMEOUT;
+  printf qq{default timeout is %d seconds\n}, timeout;
+
+  # set timeout (persists)
+  timeout 5;
+  printf qq{timeout is set globally to %d seconds\n}, timeout;
+
+  # try/ALRM
+  Try::ALRM::try {
+      local $| = 1;
+
+      try {
+        die qq{foo\n};
+      }
+      catch {
+        print qq{$_\n};
+      };
+
+      # timeout is set to 1 due to trailing value after ALRM block
+      printf qq{timeout is now set locally to %d seconds\n}, timeout;
+      sleep 6;
+  }
+  ALRM {
+      print qq{Alarm Clock!!\n};
+  } 1; # <~ temporarily overrides $Try::ALRM::TIMEOUT
+
+  printf qq{timeout is set globally to %d seconds\n}, timeout;
+
+As this module matures, this will be explored more thoroughly; as proper
+deference should be given to C<Try::Tiny> since it's such an extensively
+used module.
+
 =head1 USAGE
 
 C<Try::ALRM> doesn't really have options, it's more of a structure. So this
