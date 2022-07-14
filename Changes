@@ -1,0 +1,6 @@
+Revision history for Perl extension Try::ALRM. 
+
+0.1  Wed Jul 13 11:05:09 2022
+	- original version, released as 0.1
+        - super basic unit test, will add more for bugs
+          and regressions

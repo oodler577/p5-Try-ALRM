@@ -1,45 +1,48 @@
-package Try::ALRM;
-
 use strict;
 use warnings;
 
-use Exporter 5.57 'import';
+package Try::ALRM;
+
+our $VERSION = q{0.1};
+
+use Exporter qw/import/;
 our @EXPORT    = qw(try ALRM timeout);
 our @EXPORT_OK = qw(try ALRM timeout);
 
-our $TIMEOUT   = 60;
+our $TIMEOUT = 60;
 
-sub _assert_timeout {
-  my $timeout = shift;
-  if ( int $timeout <= 0 ) {
-    die qq{timeout must be an integeger >= 1!\n};
-  }
-}
-
-# setter/getter for $Try::ALRM::TIMEOUT 
+# setter/getter for $Try::ALRM::TIMEOUT
 sub timeout (;$) {
-  my $timeout = shift;
-  if ($timeout) {
-    _assert_timeout($timeout);
-    $TIMEOUT = $timeout;
-  }
-  return $TIMEOUT;
+    my $timeout = shift;
+    if ($timeout) {
+        _assert_timeout($timeout);
+        $TIMEOUT = $timeout;
+    }
+    return $TIMEOUT;
 }
 
 sub try (&;@) {
-  my ($TRY, $CATCH, $timeout) = @_;
-  local $SIG{ALRM} = $CATCH;
-  if ($timeout) {
-    _assert_timeout($timeout);
-  }
-  local $TIMEOUT = $timeout;
-  CORE::alarm($TIMEOUT);
-  $TRY->();
-  CORE::alarm 0;
+    my ( $TRY, $CATCH, $timeout ) = @_;
+    local $SIG{ALRM} = $CATCH;
+    if ($timeout) {
+        _assert_timeout($timeout);
+    }
+    local $TIMEOUT = $timeout;
+    CORE::alarm($TIMEOUT);
+    $TRY->();
+    CORE::alarm 0;
 }
 
 sub ALRM (&;@) {
-  return @_;
+    return @_;
+}
+
+# internal method, validation
+sub _assert_timeout {
+    my $timeout = shift;
+    if ( int $timeout <= 0 ) {
+        die qq{timeout must be an integeger >= 1!\n};
+    }
 }
 
 __PACKAGE__
@@ -48,29 +51,30 @@ __END__
 
 =head1 NAME
 
-  Try::ALRM - Provides semantics similar to C<Try::Catch>.
+Try::ALRM - Provides C<alarm> semantics similar to C<Try::Catch>.
 
 =head1 SYNOPSIS
 
     use Try::ALRM;
+     
     timeout 5;
     try {
-      local $|=1; 
+      local $|=1; #autoflush for STDOUT
       print qq{ doing something that might timeout ...\n};
       sleep 6;
     }
     ALRM {
-      print qq{ Alarm Clock!!!!\n};
+      print qq{ Wake Up!!!!\n};
     };
 
 Is equivalent to,
 
-    local $SIG{ALRM} = sub { print qq{ Alarm Clock!!!\n} }; # on limitd
+    local $SIG{ALRM} = sub { print qq{ Wake Up!!!!\n} };
     alarm 5;
-    local $|=1;
+    local $|=1; #autoflush for STDOUT
     print qq{ doing something that might timeout ...\n};
     sleep 6;
-    alarm 0; # reset alarm
+    alarm 0; # reset alarm, end of 'try' block implies this "reset"
 
 =head1 DESCRIPTION
 
@@ -213,4 +217,26 @@ The output of this block is,
   Alarm Clock!!
   timeout is set globally to 5 seconds
 
-=head1 AUTHOR AND COPYRIGHT
+=head1 Bugs
+
+Very likey.
+
+MMV. If found, please file issue on GH repo.
+
+=head1 AUTHOR
+
+oodler577
+
+=head1 ACKNOWLEDGEMENTS
+
+"I<To the least you among of all of us. You make more of a difference
+than any of you will ever know.>" -Anonymous
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2022 by oodler577
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.30.0
+or, at your option, any later version of Perl 5 you may have
+available.
