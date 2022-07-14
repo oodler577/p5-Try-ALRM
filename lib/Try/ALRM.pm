@@ -3,7 +3,7 @@ use warnings;
 
 package Try::ALRM;
 
-our $VERSION = q{0.1};
+our $VERSION = q{0.2};
 
 use Exporter qw/import/;
 our @EXPORT    = qw(try ALRM timeout);
@@ -23,11 +23,41 @@ sub timeout (;$) {
 
 sub try (&;@) {
     my ( $TRY, $CATCH, $timeout ) = @_;
-    local $SIG{ALRM} = $CATCH;
-    if ($timeout) {
-        _assert_timeout($timeout);
+
+    # local $TIMEOUT incase trailing timeout is provided
+    # after 'try {}' or after 'ALRM {}'
+    local $TIMEOUT   = $TIMEOUT;
+    local $SIG{ALRM} = $SIG{ALRM};
+
+    # if there NO 'try'
+    if ( @_ == 0 ) {
+      die qq{You are not even try'ing! A lexical block to execute is required!\n};
     }
-    local $TIMEOUT = $timeout;
+    #   try { ... };
+    elsif ( @_ == 1 ) {
+      $TIMEOUT = $TIMEOUT;
+    }
+    #   try { ... } 5;
+    elsif ( @_ == 2 and ref($CATCH) !~ m/^CODE$|::/ ) {
+      $TIMEOUT = $_[1];
+    }
+    #   try { ... } ALRM { ... };
+    elsif ( @_ == 2 and ref($CATCH) =~ m/^CODE$|::/ ) {
+      $TIMEOUT = $TIMEOUT;
+      $SIG{ALRM} = $CATCH;
+    }
+    #   try { ... } ALRM { ... } 5;
+    elsif ( @_ == 3 ) {
+      $TIMEOUT = $_[2];
+      $SIG{ALRM} = $CATCH;
+    }
+
+    # final check on the value of $TIMEOUT
+    if ($TIMEOUT) {
+      _assert_timeout($TIMEOUT);
+    }
+
+    # do trad alarm stuff
     CORE::alarm($TIMEOUT);
     $TRY->();
     CORE::alarm 0;
@@ -102,7 +132,7 @@ section is meant to descript that structure and ways to control it.
 =item C<try>
 
 This familiar idiom include the block of code that may run longer than one
-wishes and is need of an C<alarm>.
+wishes and is need of an C<alarm> signal.
 
   # default timeout is $Try::ALRM::TIMEOUT
   try {
@@ -116,7 +146,7 @@ If just C<try> is used here, what happens is functionall equivalent to:
   alarm 0;
 
 And the default handler for C<$SIG{ALRM}> is invoked if an C<ALRM> is
-send.
+ssued.
 
 =item C<ALRM>
 
@@ -148,7 +178,7 @@ is being invoked as the exception handler.
 =head1 SETTING TIMEOUT
 
 The timeout value passed to C<alarm> internally is controlled with the package variable,
-C<$Try::ALRM::TIMEOUT>. This module presents 3 different ways to control the value of
+C<$Try::ALRM::TIMEOUT>. This module presents 2 different ways to control the value of
 this variable.
 
 =over 4
@@ -183,7 +213,7 @@ block into a subroutine reference (i.e., C<CODE>).
 
 The addition of this timeout affects $Try::ALRM::TIMEOUT for the duration of the C<try> block,
 internally is using C<local> to set C<$Try::ALRM::TIMEOUT>. The reason for this is so that
-C<timeout> may continue to function properly as a getter.
+C<timeout> may continue to function properly as a getter I<inside> of the C<try> block.
 
 =back
 

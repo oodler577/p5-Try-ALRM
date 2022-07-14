@@ -33,4 +33,23 @@ ALRM {
 is 1, $alarm_triggered, q{custom $SIG{ALRM} handler triggered, as expected.};
 is 5, $Try::ALRM::TIMEOUT, sprintf(qq{default timeout is %d seconds}, timeout);
 
+$alarm_triggered = undef;
+
+# try/ALRM
+try {
+    local $| = 1;
+
+    # timeout is set to 1 due to trailing value after ALRM block
+    is 5, $Try::ALRM::TIMEOUT, sprintf(qq{default timeout is %d seconds}, timeout);
+
+    sleep 6;
+}
+ALRM {
+    note qq{Alarm Clock!!};
+    ++$alarm_triggered;
+}; # <~ temporarily overrides $Try::ALRM::TIMEOUg
+
+is 1, $alarm_triggered, q{custom $SIG{ALRM} handler triggered, as expected.};
+is 5, $Try::ALRM::TIMEOUT, sprintf(qq{default timeout is %d seconds}, timeout);
+
 done_testing;

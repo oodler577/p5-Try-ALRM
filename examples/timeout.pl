@@ -20,6 +20,6 @@ try {
 }
 ALRM {
     print qq{Alarm Clock!!\n};
-} 1; # <~ temporarily overrides $Try::ALRM::TIMEOUg
+} 1; # <~ temporarily overrides $Try::ALRM::TIMEOUT
 
 printf qq{timeout is set globally to %d seconds\n}, timeout;
