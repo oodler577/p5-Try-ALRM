@@ -259,7 +259,7 @@ oodler577
 
 =head1 ACKNOWLEDGEMENTS
 
-"I<To the least you among of all of us. You make more of a difference
+"I<To the least of you among of all of us. You make more of a difference
 than any of you will ever know.>" -Anonymous
 
 =head1 COPYRIGHT AND LICENSE
