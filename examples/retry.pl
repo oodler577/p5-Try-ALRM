@@ -53,3 +53,18 @@ finally {
     printf qq{%s after %d/%d attempt%s\n}, ($ultimately_succeeded) ? q{OK} : q{NOT OK}, $attempt, $limit, ( $attempt == 1 ) ? q{} : q{s};
 }
 timeout => 3, retries => 4;
+
+__END__
+
+Output of script currently (because it's set to timeout every time),
+
+	Attempt 1/4 of something that might take more than 3 second
+		TIMED OUT - Retrying ...
+	Attempt 2/4 of something that might take more than 3 second
+		TIMED OUT - Retrying ...
+	Attempt 3/4 of something that might take more than 3 second
+		TIMED OUT - Retrying ...
+	Attempt 4/4 of something that might take more than 3 second
+		TIMED OUT - Retrying ...
+	NOT OK after 4/4 attempts
+
