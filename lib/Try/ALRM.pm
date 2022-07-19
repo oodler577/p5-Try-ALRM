@@ -22,7 +22,7 @@ sub timeout (;$) {
 }
 
 sub try (&;@) {
-    my ( $TRY, $CATCH, $timeout ) = @_;
+    my ( $TRY, $ALRM, $timeout ) = @_;
 
     # local $TIMEOUT incase trailing timeout is provided
     # after 'try {}' or after 'ALRM {}'
@@ -44,20 +44,20 @@ sub try (&;@) {
         2 => sub {
 
             #   try { ... } 5;
-            if ( ref($CATCH) !~ m/^CODE$|::/ ) {
+            if ( ref($ALRM) !~ m/^CODE$|::/ ) {
                 return ( $_[1], $SIG{ALRM} );
             }
 
             #   try { ... } ALRM { ... };
-            elsif ( ref($CATCH) =~ m/^CODE$|::/ ) {
-                $SIG{ALRM} = $CATCH;
+            elsif ( ref($ALRM) =~ m/^CODE$|::/ ) {
+                $SIG{ALRM} = $ALRM;
                 return ( $TIMEOUT, $SIG{ALRM} );
             }
         },
 
         #   try { ... } ALRM { ... } 5;
         3 => sub {
-            $SIG{ALRM} = $CATCH;
+            $SIG{ALRM} = $ALRM;
             return ( $_[2], $SIG{ALRM} );
         },
     };
