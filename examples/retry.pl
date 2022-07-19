@@ -7,14 +7,21 @@ my $RETRIES = 3;
 
 sub retry(&;@) {
     my ( $code, $ALRM, $FINALLY, %opts ) = @_;
+
+#TODO: detect #args, look for $ALRM & $FINALLY
     my $retries = $opts{retries} // $RETRIES;
     my $timeout = $opts{timeout} // $TIMEOUT;
     my ( $attempts, $succeeded );
+
     for my $attempt ( 1 .. $retries ) {
+        $attempts = $attempt;
         my $retry = 0;
+
+        # NOTE: handler always becomes a wrapper
+
+#TODO: wrap existing $SIG{ALRM} if $ALRM is not defined
         local $SIG{ALRM} = sub {
             ++$retry;
-            $attempts = $attempt;
             $ALRM->( $attempt, $retries ) if ( ref($ALRM) =~ m/^CODE$|::/ );
         };
         alarm($timeout);
@@ -25,7 +32,8 @@ sub retry(&;@) {
             last;
         }
     }
-# need to check arg count to make this optional
+
+#TODO: need to check arg count to make this optional
     $FINALLY->( $attempts, $retries, $succeeded );
 }
 
@@ -42,7 +50,7 @@ sub finally (&;@) {
 retry {
     my ( $attempt, $limit ) = @_;
     printf qq{Attempt %d/%d of something that might take more than 3 second\n}, $attempt, $limit;
-    sleep 3;
+    sleep( 1 + int rand(3) );
 }
 ALRM {
     my ( $attempt, $limit ) = @_;
@@ -52,11 +60,21 @@ finally {
     my ( $attempt, $limit, $ultimately_succeeded ) = @_;
     printf qq{%s after %d/%d attempt%s\n}, ($ultimately_succeeded) ? q{OK} : q{NOT OK}, $attempt, $limit, ( $attempt == 1 ) ? q{} : q{s};
 }
-timeout => 3, retries => 4;
+timeout => 2, retries => 4;
 
 __END__
 
-Output of script currently (because it's set to timeout every time),
+Example output:
+
+Eventual success:
+	Attempt 1/4 of something that might take more than 3 second
+		TIMED OUT - Retrying ...
+	Attempt 2/4 of something that might take more than 3 second
+		TIMED OUT - Retrying ...
+	Attempt 3/4 of something that might take more than 3 second
+	OK after 3/4 attempts
+
+Total fail:
 
 	Attempt 1/4 of something that might take more than 3 second
 		TIMED OUT - Retrying ...
