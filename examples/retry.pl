@@ -5,27 +5,50 @@ use warnings;
 my $TIMEOUT = 60;
 my $RETRIES = 3;
 
+#TODO: get this in lib/Try/ALRM.pm
+#TODO: update unit tests for 'retry'
+
 sub retry(&;@) {
-    my ( $code, $ALRM, $FINALLY, %opts ) = @_;
+    unshift @_, q{retry};    # adding marker, will be key for this &
+    my %TODO = @_;
 
-#TODO: detect #args, look for $ALRM & $FINALLY
-    my $retries = $opts{retries} // $RETRIES;
-    my $timeout = $opts{timeout} // $TIMEOUT;
+    # accumulation of blocks, broken up by key;
+    # includes trailing key values
+#TODO: update 'try' method with this technique
+    my $TODO = \%TODO;
+
+    my $TRY = $TODO->{retry};
+    #TODO: ^^^^ die if $TRY is not CODE
+
+    my $ALRM    = $TODO->{ALRM};
+    my $FINALLY = $TODO->{finally} // sub { };
+    my $timeout = $TODO->{timeout} // $TIMEOUT;
+
     my ( $attempts, $succeeded );
+    $SIG{ALRM} //= sub { };
+    my $current_SIG_ALRM = $SIG{ALRM};
 
-    for my $attempt ( 1 .. $retries ) {
+    TIMED_ATTEMPTS:
+    for my $attempt ( 1 .. $TODO->{retries} ) {
         $attempts = $attempt;
         my $retry = 0;
 
-        # NOTE: handler always becomes a wrapper
-
-#TODO: wrap existing $SIG{ALRM} if $ALRM is not defined
+        # NOTE: handler always becomes a local wrapper
         local $SIG{ALRM} = sub {
             ++$retry;
-            $ALRM->( $attempt, $retries ) if ( ref($ALRM) =~ m/^CODE$|::/ );
+            if ( ref($ALRM) =~ m/^CODE$|::/ ) {
+                $ALRM->( $attempt, $TODO->{retries} );
+            }
+
+            # fallback to original $SIG{ALRM}, if not set is no-op 'sub {}'
+            else {
+                $current_SIG_ALRM->();
+            }
         };
+
+        # actual alarm code
         alarm($timeout);
-        $code->( $attempt, $retries );
+        $TRY->( $attempt, $TODO->{retries} );
         alarm 0;
         unless ( $retry == 1 ) {
             ++$succeeded;
@@ -33,15 +56,17 @@ sub retry(&;@) {
         }
     }
 
-#TODO: need to check arg count to make this optional
-    $FINALLY->( $attempts, $retries, $succeeded );
+    # "finally" (defaults to no-op 'sub {}' if block is not defined)
+    $FINALLY->( $attempts, $TODO->{retries}, $succeeded );
 }
 
 sub ALRM(&;@) {
+    unshift @_, q{ALRM};    # create marker, will be key for &
     return @_;
 }
 
 sub finally (&;@) {
+    unshift @_, q{finally};    # create marker, will be key for &
     return @_;
 }
 
