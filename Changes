@@ -20,3 +20,10 @@ Revision history for Perl extension Try::ALRM.
 0.4  Mon Jul 18 11:05:12 2022
         - refactor dispatch based on number of arguments
           passed to the 'try' method
+
+0.5  Fri Jul 22 11:05:12 2022
+        - added 'retry'
+        - added 'finally'
+        - changed form of trailing values (see POD),
+          original method of setting timeout with a
+          single undecorated value is no longer supported

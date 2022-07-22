@@ -24,7 +24,6 @@ try {
     # timeout is set to 1 due to trailing value after ALRM block
     is 1, $Try::ALRM::TIMEOUT, sprintf( qq{default timeout is %d seconds}, timeout );
     sleep 6;
-}
-1;
+} timeout => 1;
 
 is 5, $Try::ALRM::TIMEOUT, sprintf( qq{default timeout is %d seconds}, timeout );

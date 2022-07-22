@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 10;
+use Test::More tests => 14;
 
 BEGIN {
     use_ok q{Try::ALRM};
@@ -29,6 +29,9 @@ ALRM {
     note qq{Alarm Clock!!};
     ++$alarm_triggered;
 }
+finally {
+  ok 1, q{finally called as expected in 'try' block};
+}
 timeout => 1;    # <~ temporarily overrides $Try::ALRM::TIMEOUT
 
 is 1, $alarm_triggered,    q{custom $SIG{ALRM} handler triggered, as expected.};
@@ -48,7 +51,28 @@ try {
 ALRM {
     note qq{Alarm Clock!!};
     ++$alarm_triggered;
+}
+finally {
+  ok 1, q{finally called as expected in 'try' block};
 };
 
 is 1, $alarm_triggered,    q{custom $SIG{ALRM} handler triggered, as expected.};
 is 5, $Try::ALRM::TIMEOUT, sprintf( qq{default timeout is %d seconds}, timeout );
+
+# try/ALRM
+try {
+    local $| = 1;
+
+    # timeout is set to 1 due to trailing value after ALRM block
+    is 1, $Try::ALRM::TIMEOUT, sprintf( qq{default timeout is %d seconds}, timeout );
+
+    sleep 6;
+}
+ALRM {
+    note qq{Alarm Clock!!};
+    ++$alarm_triggered;
+}
+finally {
+  ok 1, q{finally called as expected in 'try' block};
+}
+timeout => 1;    # <~ temporarily overrides $Try::ALRM::TIMEOUT

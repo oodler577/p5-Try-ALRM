@@ -3,13 +3,14 @@ use warnings;
 
 package Try::ALRM;
 
-our $VERSION = q{0.4};
+our $VERSION = q{0.5};
 
 use Exporter qw/import/;
-our @EXPORT    = qw(try ALRM timeout);
-our @EXPORT_OK = qw(try ALRM timeout);
+our @EXPORT    = qw(try retry ALRM finally timeout);
+our @EXPORT_OK = qw(try retry ALRM finally timeout);
 
 our $TIMEOUT = 60;
+our $RETRIES = 3;
 
 # setter/getter for $Try::ALRM::TIMEOUT
 sub timeout (;$) {
@@ -21,48 +22,26 @@ sub timeout (;$) {
     return $TIMEOUT;
 }
 
+# setter/getter for $Try::ALRM::RETRIES
+sub replies (;$) {
+    my $replies = shift;
+    if ( defined $replies ) {
+        _assert_replies($replies);
+        $RETRIES = $replies;
+    }
+    return $RETRIES;
+}
+
 sub try (&;@) {
-    my ( $TRY, $ALRM, $timeout ) = @_;
+    unshift @_, q{try};
+    my %TODO = @_;
+    my $TODO = \%TODO;
 
-    # local $TIMEOUT incase trailing timeout is provided
-    # after 'try {}' or after 'ALRM {}'
-    local $TIMEOUT = $TIMEOUT;
-    local $SIG{ALRM} = $SIG{ALRM};
-
-    my $num_args = scalar @_;
-    my $dispatch = {
-
-        # if there NO 'try'
-        0 => sub { die qq{You are not even try'ing! A lexical block to execute is required!\n}; },
-
-        #   try { ... }; - basically no-op
-        1 => sub {
-            return ( $TIMEOUT, $SIG{ALRM} );
-        },
-
-        # handle 2 block forms, see in anonymous sub
-        2 => sub {
-
-            #   try { ... } 5;
-            if ( ref($ALRM) !~ m/^CODE$|::/ ) {
-                return ( $_[1], $SIG{ALRM} );
-            }
-
-            #   try { ... } ALRM { ... };
-            elsif ( ref($ALRM) =~ m/^CODE$|::/ ) {
-                $SIG{ALRM} = $ALRM;
-                return ( $TIMEOUT, $SIG{ALRM} );
-            }
-        },
-
-        #   try { ... } ALRM { ... } 5;
-        3 => sub {
-            $SIG{ALRM} = $ALRM;
-            return ( $_[2], $SIG{ALRM} );
-        },
-    };
-
-    ( $TIMEOUT, $SIG{ALRM} ) = $dispatch->{$num_args}->(@_);
+    #my ( $TRY, $ALRM, $timeout ) = @_;
+    my $TRY     = $TODO->{try}     // sub { };
+    my $ALRM    = $TODO->{ALRM}    // $SIG{ALRM};    # local ALRM defaults to global $SIG{ALRM}
+    my $timeout = $TODO->{timeout} // $TIMEOUT;      # dev note: if future need arises, `timeout=>sub{ ... }` or `timeout=>[qw/1 2 4 8 .../]` might be useful
+    my $FINALLY = $TODO->{finally} // sub { };       # $FINALLY is always called, though defaults to no-op if not set
 
     # final check on the value of $TIMEOUT
     if ($TIMEOUT) {
@@ -70,17 +49,75 @@ sub try (&;@) {
     }
 
     # do trad alarm stuff
-    CORE::alarm($TIMEOUT);
+    local $TIMEOUT = $timeout;                       # make available to timeout(;$)
+    local $SIG{ALRM} = $ALRM;                        # will either be custom $ALRM or global $SIG{ALRM} (determined above)
+    CORE::alarm($timeout);
     $TRY->();
     CORE::alarm 0;
+
+    # "finally" (defaults to no-op 'sub {}' if block is not defined)
+    $FINALLY->();
+}
+
+sub retry(&;@) {
+    unshift @_, q{retry};                            # adding marker, will be key for this &
+    my %TODO = @_;
+    my $TODO = \%TODO;
+
+    my $RETRY   = $TODO->{retry}   // sub { };       # defaults to no-op
+    my $ALRM    = $TODO->{ALRM}    // $SIG{ALRM};    # local ALRM defaults to global $SIG{ALRM}
+    my $timeout = $TODO->{timeout} // $TIMEOUT;
+    my $FINALLY = $TODO->{finally} // sub { };
+
+    my ( $attempts, $succeeded );
+
+  TIMED_ATTEMPTS:
+    for my $attempt ( 1 .. $TODO->{retries} ) {
+        $attempts = $attempt;
+        my $retry = 0;
+
+        # NOTE: handler always becomes a local wrapper
+        local $SIG{ALRM} = sub {
+            ++$retry;
+            if ( ref($ALRM) =~ m/^CODE$|::/ ) {
+                $ALRM->( $attempt, $TODO->{retries} );
+            }
+        };
+
+        # actual alarm code
+        alarm($timeout);
+        $RETRY->( $attempt, $TODO->{retries} );
+        alarm 0;
+        unless ( $retry == 1 ) {
+            ++$succeeded;
+            last;
+        }
+    }
+
+    # "finally" (defaults to no-op 'sub {}' if block is not defined)
+    $FINALLY->( $attempts, $TODO->{retries}, $succeeded );
 }
 
 sub ALRM (&;@) {
+    unshift @_, q{ALRM};
+    return @_;
+}
+
+sub finally (&;@) {
+    unshift @_, q{finally};    # create marker, will be key for &
     return @_;
 }
 
 # internal method, validation
 sub _assert_timeout {
+    my $timeout = shift;
+    if ( int $timeout <= 0 ) {
+        die qq{timeout must be an integeger >= 1!\n};
+    }
+}
+
+# internal method, validation
+sub _assert_retries {
     my $timeout = shift;
     if ( int $timeout <= 0 ) {
         die qq{timeout must be an integeger >= 1!\n};
@@ -97,9 +134,10 @@ Try::ALRM - Provides C<alarm> semantics similar to C<Try::Catch>.
 
 =head1 SYNOPSIS
 
+=head2 C<try>
+
     use Try::ALRM;
      
-    timeout 5;
     try {
       local $|=1; #autoflush for STDOUT
       print qq{ doing something that might timeout ...\n};
@@ -107,7 +145,7 @@ Try::ALRM - Provides C<alarm> semantics similar to C<Try::Catch>.
     }
     ALRM {
       print qq{ Wake Up!!!!\n};
-    };
+    } timeout => 1;
 
 Is equivalent to,
 
@@ -117,6 +155,18 @@ Is equivalent to,
     print qq{ doing something that might timeout ...\n};
     sleep 6;
     alarm 0; # reset alarm, end of 'try' block implies this "reset"
+
+=head2 C<retry>
+
+retry {
+    my ( $attempt, $limit ) = @_;
+    printf qq{Attempt %d/%d of something that might take more than 3 second\n}, $attempt, $limit;
+    sleep( 1 + int rand(5) );
+}
+ALRM {
+    my ( $attempt, $limit ) = @_;
+    printf qq{\tTIMED OUT - Retrying ...\n};
+} timeout => 3, retries => 4;
 
 =head1 DESCRIPTION
 
@@ -141,7 +191,13 @@ This module exports 3 methods:
 
 =item C<try>
 
+=item C<retry>
+
 =item C<ALRM>
+
+=item C<finally>
+
+=item C<retries>
 
 =item C<timeout>
 
@@ -189,7 +245,7 @@ qualified package names, e.g.:
   }
   ALRM {
       print qq{Alarm Clock!!\n};
-  } 1; # <~ temporarily overrides $Try::ALRM::TIMEOUT
+  } timeout => 1; # <~ temporarily overrides $Try::ALRM::TIMEOUT
 
   printf qq{timeout is set globally to %d seconds\n}, timeout;
 
@@ -222,6 +278,14 @@ If just C<try> is used here, what happens is functionall equivalent to:
 
 And the default handler for C<$SIG{ALRM}> is invoked if an C<ALRM> is
 ssued.
+
+=item C<retry>
+
+  # default timeout is $Try::ALRM::TIMEOUT
+  # default number of retries is $Try::ALRM::RETRIES
+  retry {
+    this_subroutine_call_may_timeout_and_we_want_to_retry();
+  };
 
 =item C<ALRM>
 
@@ -281,10 +345,12 @@ If used without an input value, C<timeout> returns the current value of C<$Try::
   }
   ALRM {
     print qq{ Alarm Clock!!!!\n};
-  } 10; # NB: no comma; applies temporarily!
+  } timeout => 10; # NB: applies temporarily!
 
 This approach utilizes the effect of defining a Perl prototype, C<&>, which coerces a lexical
-block into a subroutine reference (i.e., C<CODE>).
+block into a subroutine reference (i.e., C<CODE>). The I<key=>value> syntax was chosen as
+a compromise because it makes things a lot more clear I<and> makes the implementation of the
+blocks a lot easier (use the source to see how, I<Luke>).
 
 The addition of this timeout affects $Try::ALRM::TIMEOUT for the duration of the C<try> block,
 internally is using C<local> to set C<$Try::ALRM::TIMEOUT>. The reason for this is so that
@@ -292,7 +358,7 @@ C<timeout> may continue to function properly as a getter I<inside> of the C<try>
 
 =back
 
-=head2 Example
+=head2 C<try>/C<ALRM>/C<finally> Examples
 
 Using the two methods above, the following code demonstrats the usage of C<timeout> and the
 effect of the trailing timeout value,
@@ -303,13 +369,12 @@ effect of the trailing timeout value,
      
     # try/ALRM
     try {
-      local $|=1;
       printf qq{ doing something that might timeout before %d seconds are up ...\n}, timeout;
       sleep 6;
     }
     ALRM {
       print qq{Alarm Clock!!\n};
-    } 1; # <~ trailing timeout
+    } timeout => 1; # <~ trailing timeout
     
     # will still be 5 seconds
     printf qq{now %d seconds timeout\n}, timeout;
@@ -321,6 +386,8 @@ The output of this block is,
   timeout is now set locally to 1 seconds
   Alarm Clock!!
   timeout is set globally to 5 seconds
+
+=head2 C<retry>/C<ALRM>/C<finally> Examples
 
 =head1 Bugs
 

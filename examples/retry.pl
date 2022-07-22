@@ -1,4 +1,3 @@
-
 use strict;
 use warnings;
 
@@ -7,14 +6,10 @@ my $RETRIES = 3;
 
 #TODO: get this in lib/Try/ALRM.pm
 #TODO: update unit tests for 'retry'
-
+=pod
 sub retry(&;@) {
     unshift @_, q{retry};    # adding marker, will be key for this &
     my %TODO = @_;
-
-    # accumulation of blocks, broken up by key;
-    # includes trailing key values
-#TODO: update 'try' method with this technique
     my $TODO = \%TODO;
 
     my $TRY = $TODO->{retry};
@@ -70,22 +65,26 @@ sub finally (&;@) {
     return @_;
 }
 
+=cut
+
+use Try::ALRM;
 # -- try it out
 
 retry {
     my ( $attempt, $limit ) = @_;
     printf qq{Attempt %d/%d of something that might take more than 3 second\n}, $attempt, $limit;
-    sleep( 1 + int rand(3) );
+    sleep( 1 + int rand(5) );
 }
 ALRM {
     my ( $attempt, $limit ) = @_;
     printf qq{\tTIMED OUT - Retrying ...\n};
 }
 finally {
-    my ( $attempt, $limit, $ultimately_succeeded ) = @_;
-    printf qq{%s after %d/%d attempt%s\n}, ($ultimately_succeeded) ? q{OK} : q{NOT OK}, $attempt, $limit, ( $attempt == 1 ) ? q{} : q{s};
+    my ( $attempts, $limit, $success ) = @_;
+    printf qq{%s after %d of %d attempts\n}, ($success)?q{Success}:q{Failure}, $attempts, $limit; 
 }
-timeout => 2, retries => 4;
+timeout => 3, retries => 4;
+#TODO: timeout to be a subroutine or array of numbers that match with the retry?
 
 __END__
 
