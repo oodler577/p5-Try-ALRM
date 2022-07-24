@@ -331,6 +331,8 @@ made so far.
 
 =item C<finally BLOCK>
 
+Optional.
+
 This BLOCK is called unconditionally. When called with C<try>, C<@_> contains an
 indication there being a timeout or not in the attempted block.
 
