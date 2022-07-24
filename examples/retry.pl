@@ -2,89 +2,37 @@ use strict;
 use warnings;
 
 my $TIMEOUT = 60;
-my $RETRIES = 3;
+my $TRIES   = 3;
 
 #TODO: get this in lib/Try/ALRM.pm
 #TODO: update unit tests for 'retry'
-=pod
-sub retry(&;@) {
-    unshift @_, q{retry};    # adding marker, will be key for this &
-    my %TODO = @_;
-    my $TODO = \%TODO;
 
-    my $TRY = $TODO->{retry};
-    #TODO: ^^^^ die if $TRY is not CODE
+use Try::ALRM qw/tries timeout/;
 
-    my $ALRM    = $TODO->{ALRM};
-    my $FINALLY = $TODO->{finally} // sub { };
-    my $timeout = $TODO->{timeout} // $TIMEOUT;
-
-    my ( $attempts, $succeeded );
-    $SIG{ALRM} //= sub { };
-    my $current_SIG_ALRM = $SIG{ALRM};
-
-    TIMED_ATTEMPTS:
-    for my $attempt ( 1 .. $TODO->{retries} ) {
-        $attempts = $attempt;
-        my $retry = 0;
-
-        # NOTE: handler always becomes a local wrapper
-        local $SIG{ALRM} = sub {
-            ++$retry;
-            if ( ref($ALRM) =~ m/^CODE$|::/ ) {
-                $ALRM->( $attempt, $TODO->{retries} );
-            }
-
-            # fallback to original $SIG{ALRM}, if not set is no-op 'sub {}'
-            else {
-                $current_SIG_ALRM->();
-            }
-        };
-
-        # actual alarm code
-        alarm($timeout);
-        $TRY->( $attempt, $TODO->{retries} );
-        alarm 0;
-        unless ( $retry == 1 ) {
-            ++$succeeded;
-            last;
-        }
+Try::ALRM::retry {
+    my ($attempt) = @_;    # @_ is populated as described in this line
+    printf qq{Attempt %d/%d ... \n}, $attempt, tries;
+    sleep(5);
+}
+Try::ALRM::ALRM {
+    my ($attempt) = @_;    # @_ is populated as described in this line
+    printf qq{\tTIMED OUT};
+    if ( $attempt < tries ) {
+        printf qq{ - Retrying ...\n};
     }
-
-    # "finally" (defaults to no-op 'sub {}' if block is not defined)
-    $FINALLY->( $attempts, $TODO->{retries}, $succeeded );
+    else {
+        printf qq{ - Giving up ...\n};
+    }
 }
-
-sub ALRM(&;@) {
-    unshift @_, q{ALRM};    # create marker, will be key for &
-    return @_;
+Try::ALRM::finally {
+    my ( $attempts, $success ) = @_;    # @_ is populated as described in this line
+    my $tries   = tries;                # will be 3
+    my $timeout = timeout;              # will be 4
+    printf qq{%s after %d of %d attempts (timeout of %d)\n}, ($success) ? q{Success} : q{Failure}, $attempts, $tries, $timeout;
 }
+timeout => 3, tries => 1;
 
-sub finally (&;@) {
-    unshift @_, q{finally};    # create marker, will be key for &
-    return @_;
-}
-
-=cut
-
-use Try::ALRM;
-# -- try it out
-
-retry {
-    my ( $attempt, $limit ) = @_;
-    printf qq{Attempt %d/%d of something that might take more than 3 second\n}, $attempt, $limit;
-    sleep( 1 + int rand(5) );
-}
-ALRM {
-    my ( $attempt, $limit ) = @_;
-    printf qq{\tTIMED OUT - Retrying ...\n};
-}
-finally {
-    my ( $attempts, $limit, $success ) = @_;
-    printf qq{%s after %d of %d attempts\n}, ($success)?q{Success}:q{Failure}, $attempts, $limit; 
-}
-timeout => 3, retries => 4;
-#TODO: timeout to be a subroutine or array of numbers that match with the retry?
+#Maybe TODO: timeout to be a subroutine or array of numbers that match with the retry?
 
 __END__
 
