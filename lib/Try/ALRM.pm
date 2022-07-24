@@ -438,7 +438,7 @@ it; e.g.:
 The addition of the C<ALRM> block above is functionally equivalent to the typical
 idiom of using C<alarm> and setting C<$SIG{ALRM}>,
 
-  local $SIG{ALRM} = sub { print qq{ Alarm Clock!!!!\n};
+  local $SIG{ALRM} = sub { print qq{ Alarm Clock!!!!\n} };
   alarm 60; # e.g., the default value of $Try::ALRM::TIMEOUT
   this_subroutine_call_may_timeout();
   alarm 0;
