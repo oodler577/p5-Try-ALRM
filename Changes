@@ -27,3 +27,7 @@ Revision history for Perl extension Try::ALRM.
         - changed form of trailing values (see POD),
           original method of setting timeout with a
           single undecorated value is no longer supported
+        - added some more qualifying language in POD
+          about the state of the module's keyword, "try".
+        - module will mature over time, possibly with
+          some breaking changes as assumptions are adjusted.
