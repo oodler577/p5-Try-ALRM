@@ -555,7 +555,7 @@ set to the RHS value of C<< tries => >>.
 
 Very likey.
 
-MMV. If found, please file issue on GH repo.
+Milage May Vary, as I<they> say. If found, please file issue on GH repo.
 
 =head1 AUTHOR
 
