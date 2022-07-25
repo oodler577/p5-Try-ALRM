@@ -163,7 +163,7 @@ repo.
 Is equivalent to,
 
     local $SIG{ALRM} = sub { print qq{ Wake Up!!!!\n} };
-    alarm 5;
+    alarm 1;
     print qq{ doing something that might timeout ...\n};
     sleep 6;
     alarm 0; # reset alarm, end of 'try' block implies this "reset"
@@ -172,9 +172,9 @@ Is equivalent to,
 =head2 C<retry>
 
     retry {
-        my ($attempt) = @_;    # @_ is populated as described in this line
-        printf qq{Attempt %d/%d ... \n}, $attempt, tries;
-        sleep(5);
+        my ($attempt_num) = @_;    # @_ is populated as described in this line
+        printf qq{Attempt %d/%d ... \n}, $attempt_num, tries;
+        sleep 5;
     }
     ALRM {
         my ($attempt) = @_;                 # Note: @_ is populated as described in this line when called with retry
@@ -188,8 +188,8 @@ Is equivalent to,
     }
     finally {
         my ( $attempts, $success ) = @_;    # Note: @_ is populated as described in this line when called with retry
-        my $tries   = tries;                # will be 3
-        my $timeout = timeout;              # will be 4
+        my $tries   = tries;                # "what was the limit on number of tries?" Here it will be 4
+        my $timeout = timeout;              # "what was the timeout allowed?" Here it will be 3
         printf qq{%s after %d of %d attempts (timeout of %d)\n}, ($success) ? q{Success} : q{Failure}, $attempts, $tries, $timeout;
     }
     timeout => 3, tries => 4;
