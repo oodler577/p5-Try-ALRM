@@ -32,13 +32,13 @@ sub tries (;$) {
     return $TRIES;
 }
 
+#NOTE: C<try_once> a case of C<retry>, where C<< tries => 1 >>.
 sub try_once (&;@) {
-    #C<try_once> a case of C<retry>, where C<tries => 1>.
-    &retry(@_,tries=>1); #&retry, bypasses prototype
+    &retry( @_, tries => 1 );    #&retry, bypasses prototype
 }
 
 sub retry(&;@) {
-    unshift @_, q{retry};                            # adding marker, will be key for this &
+    unshift @_, q{retry};        # adding marker, will be key for this &
     my %TODO = @_;
     my $TODO = \%TODO;
 
@@ -111,7 +111,7 @@ __END__
 
 =head1 NAME
 
-Try::ALRM - Provides C<try> and C<retry> semantics to C<CORE::alarm>, similar to C<Try::Catch>.
+Try::ALRM - Provides C<try_once> and C<retry> semantics to C<CORE::alarm>, similar to C<Try::Catch>.
 
 =head1 FRIENDLY TESTING AND FEEDBACK REQUESTED 
 
@@ -122,61 +122,67 @@ repo.
 
 =head1 SYNOPSIS
 
-=head2 C<try>
+=head2 C<try_once>
 
     use Try::ALRM;
      
-    try {
+    try_once {
+      my ($attempts) = @_;                # @_ is populated as described in this line
       print qq{ doing something that might timeout ...\n};
       sleep 6;
     }
     ALRM {
+      my ($attempts) = @_;                # @_ is populated as described in this line
       print qq{ Wake Up!!!!\n};
     }
     finally {
-      # unconditionally do this, note: @_ is empty when called via `try`
+      my ( $attempts, $success ) = @_;    # Note: @_ is populated as described in this line when called with retry
+      my $tries   = tries;                # "what was the limit on number of tries?" Here it will be 4
+      my $timeout = timeout;              # "what was the timeout allowed?" Here it will be 3
+      printf qq{%s after %d of %d attempts (timeout of %d)\n}, ($success) ? q{Success} : q{Failure}, $attempts, $tries, $timeout;
     } timeout => 1;
 
-Is equivalent to,
+Is essentially equivalent to,
 
     local $SIG{ALRM} = sub { print qq{ Wake Up!!!!\n} };
     alarm 1;
     print qq{ doing something that might timeout ...\n};
     sleep 6;
     alarm 0; # reset alarm, end of 'try' block implies this "reset"
-# finally ...
 
 =head2 C<retry>
 
+    # Note, the example above of 'try_once' is a reduced case of
+    # 'retry' with 'tries => 1'
+
     retry {
-        my ($attempt_num) = @_;    # @_ is populated as described in this line
-        printf qq{Attempt %d/%d ... \n}, $attempt_num, tries;
-        sleep 5;
+      my ($attempts) = @_;                # @_ is populated as described in this line
+      printf qq{Attempt %d/%d ... \n}, $attempts, tries;
+      sleep 5;
     }
     ALRM {
-        my ($attempt) = @_;                 # Note: @_ is populated as described in this line when called with retry
-        printf qq{\tTIMED OUT};
-        if ( $attempt < tries ) {
-            printf qq{ - Retrying ...\n};
-        }
-        else {
-            printf qq{ - Giving up ...\n};
-        }
+      my ($attempts) = @_;                # @_ is populated as described in this line
+      printf qq{\tTIMED OUT};
+      if ( $attempt < tries ) {
+          printf qq{ - Retrying ...\n};
+      }
+      else {
+          printf qq{ - Giving up ...\n};
+      }
     }
     finally {
-        my ( $attempts, $success ) = @_;    # Note: @_ is populated as described in this line when called with retry
-        my $tries   = tries;                # "what was the limit on number of tries?" Here it will be 4
-        my $timeout = timeout;              # "what was the timeout allowed?" Here it will be 3
-        printf qq{%s after %d of %d attempts (timeout of %d)\n}, ($success) ? q{Success} : q{Failure}, $attempts, $tries, $timeout;
+      my ( $attempts, $success ) = @_;    # Note: @_ is populated as described in this line when called with retry
+      my $tries   = tries;                # "what was the limit on number of tries?" Here it will be 4
+      my $timeout = timeout;              # "what was the timeout allowed?" Here it will be 3
+      printf qq{%s after %d of %d attempts (timeout of %d)\n}, ($success) ? q{Success} : q{Failure}, $attempts, $tries, $timeout;
     }
     timeout => 3, tries => 4;
 
 This is equivalent to ... well, checkout the implementation of C<Try::ALRM::retry(&;@)>,
 because it is equivalent to that I<:-)>.
 
-However, it should be pointed out that C<try> is a reduced case of C<retry>
-where C<< tries => 1 >>.  There might be benefits to using it in this way. Future
-developments may be affected by this approach.
+However, it should be pointed out that C<try_once> is a reduced case of C<retry>
+where C<< tries => 1 >>.  There might be benefits to using C<retry> in this way.
 
 =head1 DESCRIPTION
 
@@ -193,71 +199,16 @@ Internally, the I<keywords> are implemented as prototypes and uses the same
 sort of coersion of a lexical bloc to a subroutine reference that is used
 in C<Try::Tiny>.
 
-=head1 THE CLOBBERING OF THE C<try> KEYWORD 
-
-C<Try::ALRM> implements a C<try> method ( though, no C<catch>). It does
-provide and exports a C<finally> keyword.
-
-There is a similar opportunity for clobbering the C<finally> keyword.
-The proper course of action is still unknown, but could include renaming
-C<try> and C<finally>. However, a more fair and permanent solution would be
-to not export the C<try> or C<finally> keywords and force the caller to use
-C<Try::ALRM::try>, etc. 
-
-To ensure that I<NO> methods get exported by C<Try::ALRM>, it may be loaded
-as follows,
-
-    use Try::ALRM qw//; # now all keywords must be called fully qualified
-
-This module has not yet been tested extensively with C<Try::Tiny>, but in
-order to eliminate the potential for clobbering the exported C<try> method,
-it may be prudent to refer to C<Try::ALRM>'s methods using their fully
-qualified package names, e.g., below only C<tries> and C<timeout> are exported
-by default. C<retry>, C<ALRM>, and C<finally> are not; and they are
-referred to by their fully qualified name (something the author of this
-module tends to do often enough anyway):
-
-    use Try::ALRM qw/tries timeout/;
-    
-    Try::ALRM::retry {
-        my ($attempt) = @_;    # @_ is populated as described in this line
-        printf qq{Attempt %d/%d ... \n}, $attempt, tries; sleep(5);
-    }
-    Try::ALRM::ALRM {
-        my ($attempt) = @_;    # @_ is populated as described in this line
-        printf qq{\tTIMED OUT};
-        if ( $attempt < tries ) {
-            printf qq{ - Retrying ...\n};
-        }
-        else {
-            printf qq{ - Giving up ...\n};
-        }
-    }
-    Try::ALRM::finally {
-        my ( $attempts, $success ) = @_;    # @_ is populated as described in this line
-        my $tries   = tries;                # will be 3
-        my $timeout = timeout;              # will be 4
-        printf qq{%s after %d of %d attempts (timeout of %d)\n}, ($success) ? q{Success} : q{Failure}, $attempts, $tries, $timeout;
-    }
-    timeout => 3, tries => 4;
-
-As this module matures, this will be explored more thoroughly; as proper deference should be given to C<Try::Tiny> since it's such an extensively
-used module.
-
 =head1 EXPORTS
-
-It is possible that this module will in the future I<not> export any subroutines
-that might conflict with keywords provided by more commonly used modules (e.g.,
-C<Try::Tiny::try>. But for now all methods are exported.
 
 This module exports 6 methods:
 
-B<NOTE>: C<Try::ALRM::try> and C<Try::ALRM::retry> are mutually exclusive, but one
-of them is I<required> to invoke any benefits of using this module.
+B<NOTE>: C<Try::ALRM::try_once> and C<Try::ALRM::retry> are mutually exclusive, but
+one of them is I<required> to invoke any benefits of using this module.
 
 =over 4
 
-=item C<try BLOCK>
+=item C<try_once BLOCK>
 
 Not meant to be used with C<Try::ARLM::retry>.
 
@@ -268,7 +219,7 @@ will be employed. Mutually exclusive of C<retry>.
 
 Accepts blocks: C<ALRM>, C<finally>; and trailing modifier C<< timeout => INT >>.
 
-B<Note>: that C<try> is essentially a trival case of C<retry> with C<< tries => 1 >>; and
+B<Note>: that C<try_once> is essentially a trival case of C<retry> with C<< tries => 1 >>; and
 in the future it may just become a wrapper around this case. For now it is its own
 independant implementation.
 
@@ -310,7 +261,7 @@ made so far.
 
 Optional.
 
-This BLOCK is called unconditionally. When called with C<try>, C<@_> contains an
+This BLOCK is called unconditionally. When called with C<try_once>, C<@_> contains an
 indication there being a timeout or not in the attempted block.
 
 When called with C<retry>, C<@_> also contains the number of attempts that have been
@@ -322,7 +273,7 @@ if C<ALRM> had been invoked;
     my ($tries, $succeeded) = @; 
   };
 
-When used with C<try>, C<@_> is empty. Note that C<try> is essentially a trival case
+When used with C<try_once>, C<@_> is empty. Note that C<try_once> is essentially a trival case
 of C<retry> with C<< tries => 1 >>; and in the future it may just become a wrapper around
 this case.
 
@@ -330,10 +281,10 @@ this case.
 
 Setter/getter for C<$Try::ALRM::TIMEOUT>, which governs the default timeout in number
 of seconds. This can be temporarily overridden using the trailing modifier C<< timeout => INT >>
-that is supported via C<try> and C<retry>. 
+that is supported via C<try_once> and C<retry>. 
 
   timeout 10; # sets $Try::ALRM::TIMEOUT to 10
-  try {
+  try_once {
     ...
   }
   ALRM {
@@ -374,7 +325,7 @@ section is meant to descript that structure and ways to control it.
 
 =over 4
 
-=item C<try>
+=item C<try_once>
 
 This familiar idiom include the block of code that may run longer than one
 wishes and is need of an C<alarm> signal.
@@ -384,7 +335,7 @@ wishes and is need of an C<alarm> signal.
     this_subroutine_call_may_timeout();
   };
 
-If just C<try> is used here, what happens is functionall equivalent to:
+If just C<try_once> is used here, what happens is functionall equivalent to:
 
   alarm 60; # e.g., the default value of $Try::ALRM::TIMEOUT
   this_subroutine_call_may_timeout();
@@ -468,13 +419,13 @@ block into a subroutine reference (i.e., C<CODE>). The I<< key => value >> synta
 a compromise because it makes things a lot more clear I<and> makes the implementation of the
 blocks a lot easier (use the source to see how, I<Luke>).
 
-The addition of this timeout affects $Try::ALRM::TIMEOUT for the duration of the C<try> block,
+The addition of this timeout affects $Try::ALRM::TIMEOUT for the duration of the C<try_once> block,
 internally is using C<local> to set C<$Try::ALRM::TIMEOUT>. The reason for this is so that
-C<timeout> may continue to function properly as a getter I<inside> of the C<try> block.
+C<timeout> may continue to function properly as a getter I<inside> of the C<try_once> block.
 
 =back
 
-=head3 C<try>/C<ALRM>/C<finally> Examples
+=head3 C<try_once>/C<ALRM>/C<finally> Examples
 
 Using the two methods above, the following code demonstrats the usage of C<timeout> and the
 effect of the trailing timeout value,
@@ -533,6 +484,10 @@ set to the RHS value of C<< tries => >>.
 Very likey.
 
 Milage May Vary, as I<they> say. If found, please file issue on GH repo.
+
+The module's purpose is essentially complete, and changes that are made
+will be strictly to fix bugs in the code or POD. Please report them, and
+I will find them eventually.
 
 =head1 AUTHOR
 
