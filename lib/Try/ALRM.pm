@@ -234,7 +234,7 @@ This continues until an C<ALRM> signal is not triggered or if the number of
 C<$Try::ALRM::TRIES> has been reached.
 
 Accepts blocks: C<ALRM>, C<finally>; and trailing modifiers C<< timeout => INT >>,
-and C<< retries => INT >>.
+and C<< tries => INT >>.
 
 C<retry> makes values available to each C<BLOCK> that is called via C<@_>, see
 description of each BLOCK below for more details. This also applies to the BLOCK
