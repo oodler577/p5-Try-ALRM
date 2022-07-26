@@ -3,11 +3,11 @@ use warnings;
 
 package Try::ALRM;
 
-our $VERSION = q{0.5};
+our $VERSION = q{0.6};
 
 use Exporter qw/import/;
-our @EXPORT    = qw(try retry ALRM finally timeout tries);
-our @EXPORT_OK = qw(try retry ALRM finally timeout tries);
+our @EXPORT    = qw(try_once retry ALRM finally timeout tries);
+our @EXPORT_OK = qw(try_once retry ALRM finally timeout tries);
 
 our $TIMEOUT = 60;
 our $TRIES   = 3;
@@ -32,32 +32,9 @@ sub tries (;$) {
     return $TRIES;
 }
 
-#TODO: investigate making C<try> a case of C<retry>, where C<tries => 1>.
-sub try (&;@) {
-    unshift @_, q{try};
-    my %TODO = @_;
-    my $TODO = \%TODO;
-
-    #my ( $TRY, $ALRM, $timeout ) = @_;
-    my $TRY     = $TODO->{try}     // sub { };
-    my $ALRM    = $TODO->{ALRM}    // $SIG{ALRM};    # local ALRM defaults to global $SIG{ALRM}
-    my $timeout = $TODO->{timeout} // $TIMEOUT;      # dev note: if future need arises, `timeout=>sub{ ... }` or `timeout=>[qw/1 2 4 8 .../]` might be useful
-    my $FINALLY = $TODO->{finally} // sub { };       # $FINALLY is always called, though defaults to no-op if not set
-
-    # final check on the value of $TIMEOUT
-    if ($TIMEOUT) {
-        _assert_timeout($TIMEOUT);
-    }
-
-    local $TIMEOUT   = $timeout;                     # make available to timeout(;$)
-    local $SIG{ALRM} = $ALRM;                        # will either be custom $ALRM or global $SIG{ALRM} (determined above)
-                                                     # do trad alarm stuff
-    CORE::alarm($timeout);
-    $TRY->();
-    CORE::alarm 0;
-
-    # "finally" (defaults to no-op 'sub {}' if block is not defined)
-    $FINALLY->();
+sub try_once (&;@) {
+    #C<try_once> a case of C<retry>, where C<tries => 1>.
+    &retry(@_,tries=>1); #&retry, bypasses prototype
 }
 
 sub retry(&;@) {
