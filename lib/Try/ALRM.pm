@@ -3,7 +3,7 @@ use warnings;
 
 package Try::ALRM;
 
-our $VERSION = q{0.81};
+our $VERSION = q{0.82};
 
 use Exporter qw/import/;
 our @EXPORT    = qw(try_once retry ALRM finally timeout tries);
@@ -112,8 +112,7 @@ __END__
 
 =head1 NAME
 
-Try::ALRM - Provides C<try_once> and C<retry> semantics to C<CORE::alarm>, similar to
-L<Try::Tiny>.
+Try::ALRM - Provides try/catch-like semantics for an ALRM thrown by CORE::alarm
 
 =head1 SYNOPSIS
 
