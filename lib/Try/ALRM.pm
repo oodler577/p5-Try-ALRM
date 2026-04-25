@@ -3,8 +3,6 @@ use warnings;
 
 package Try::ALRM;
 
-# ABSTRACT: Try/catch-style semantics for alarm-based timeouts
-
 our $VERSION = q{1.01};
 
 use Exporter qw/import/;
@@ -172,6 +170,10 @@ sub _assert_tries {
 __PACKAGE__;
 
 __END__
+
+=head1 NAME
+
+Try::ALRM - Structured retry and timeout handling using CORE::alarm
 
 =head1 DESCRIPTION
 
