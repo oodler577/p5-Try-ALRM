@@ -3,14 +3,21 @@ use warnings;
 
 package Try::ALRM;
 
-our $VERSION = q{1.01};
+# ABSTRACT: Structured retry and timeout handling using CORE::alarm
+
+our $VERSION = q{1.02};
 
 use Exporter qw/import/;
+use Scalar::Util qw/refaddr/;
+use Time::HiRes qw/time/;
+
 our @EXPORT    = qw(try_once retry ALRM finally timeout tries);
 our @EXPORT_OK = qw(try_once retry ALRM finally timeout tries);
 
 our $TIMEOUT = 60;
 our $TRIES   = 3;
+
+my @ALARM_STACK;
 
 sub timeout (;$) {
     my $timeout = shift;
@@ -61,37 +68,38 @@ sub retry (&;@) {
     for my $attempt ( 1 .. $tries ) {
         $attempts = $attempt;
 
-        my $timed_out = 0;
         my $alarm_token = bless \( my $token = "Try::ALRM timeout" ),
             'Try::ALRM::_Timeout';
 
-        local $SIG{ALRM} = sub {
-            $timed_out = 1;
+        local $SIG{ALRM} = \&_dispatch_alarm;
 
-            if ( ref($alarm_block) eq 'CODE' ) {
-                $alarm_block->($attempt);
-            }
-
-            die $alarm_token;
-        };
+        my $frame = _push_alarm_frame(
+            timeout => $timeout,
+            attempt => $attempt,
+            handler => $alarm_block,
+            token   => $alarm_token,
+        );
 
         my $ok = eval {
-            alarm($timeout);
             $retry_block->($attempt);
-            alarm(0);
+            _pop_alarm_frame($frame);
             1;
         };
 
         my $eval_error = $@;
 
-        alarm(0);
+        _pop_alarm_frame($frame);
 
         if ($ok) {
             $succeeded = 1;
             last ATTEMPT;
         }
 
-        if ( ref($eval_error) && ref($eval_error) eq 'Try::ALRM::_Timeout' ) {
+        if (
+            ref($eval_error)
+            && ref($eval_error) eq 'Try::ALRM::_Timeout'
+            && refaddr($eval_error) == refaddr($alarm_token)
+        ) {
             next ATTEMPT;
         }
 
@@ -119,6 +127,81 @@ sub ALRM (&;@) {
 
 sub finally (&;@) {
     return finally => @_;
+}
+
+sub _push_alarm_frame {
+    my %frame = @_;
+
+    $frame{deadline} = time() + $frame{timeout};
+
+    push @ALARM_STACK, \%frame;
+    _reset_alarm();
+
+    return \%frame;
+}
+
+sub _pop_alarm_frame {
+    my $frame = shift;
+
+    return unless $frame;
+
+    @ALARM_STACK = grep {
+        refaddr($_) != refaddr($frame)
+    } @ALARM_STACK;
+
+    _reset_alarm();
+
+    return;
+}
+
+sub _dispatch_alarm {
+    my $now = time();
+
+    my @expired = sort {
+        $a->{deadline} <=> $b->{deadline}
+    } grep {
+        $_->{deadline} <= $now
+    } @ALARM_STACK;
+
+    unless (@expired) {
+        _reset_alarm();
+        return;
+    }
+
+    my $frame = $expired[0];
+
+    if ( ref( $frame->{handler} ) eq 'CODE' ) {
+        $frame->{handler}->( $frame->{attempt} );
+    }
+
+    die $frame->{token};
+}
+
+sub _reset_alarm {
+    CORE::alarm(0);
+
+    return unless @ALARM_STACK;
+
+    my ($next) = sort {
+        $a->{deadline} <=> $b->{deadline}
+    } @ALARM_STACK;
+
+    my $remaining = $next->{deadline} - time();
+
+    if ( $remaining <= 0 ) {
+        CORE::alarm(1);
+        return;
+    }
+
+    CORE::alarm( _ceil($remaining) );
+
+    return;
+}
+
+sub _ceil {
+    my $value = shift;
+
+    return int($value) == $value ? int($value) : int($value) + 1;
 }
 
 sub _parse_retry_args {
@@ -197,6 +280,9 @@ continues with the next attempt.
 The active alarm is always cleared before control leaves the attempt,
 whether the block succeeds, times out, or dies for another reason.
 
+C<retry> and C<try_once> may be nested. Active timeout scopes are tracked
+internally so an inner timeout does not permanently cancel an outer one.
+
 =head1 EXPORTS
 
 This module exports six keywords.
@@ -237,6 +323,10 @@ The block dies for a non-timeout reason
 
 If BLOCK dies for a non-timeout reason, C<finally> is still executed
 before the original exception is rethrown.
+
+Nested C<retry> and C<try_once> blocks maintain their own timeout state.
+If an outer timeout expires while an inner block is running, the outer
+timeout is preserved and rethrown through the inner scope.
 
 =head2 ALRM BLOCK
 
