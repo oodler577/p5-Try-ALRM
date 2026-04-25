@@ -5,7 +5,7 @@ package Try::ALRM;
 
 # ABSTRACT: Structured retry and timeout handling using CORE::alarm
 
-our $VERSION = q{1.02};
+our $VERSION = q{1.03};
 
 use Exporter qw/import/;
 use Scalar::Util qw/refaddr/;
@@ -283,6 +283,10 @@ whether the block succeeds, times out, or dies for another reason.
 C<retry> and C<try_once> may be nested. Active timeout scopes are tracked
 internally so an inner timeout does not permanently cancel an outer one.
 
+C<retry> and C<try_once> may be nested. Timeout scopes are tracked so
+that inner timeouts do not cancel outer ones. When multiple timeouts are
+active, the earliest deadline wins.
+
 =head1 EXPORTS
 
 This module exports six keywords.
@@ -324,9 +328,11 @@ The block dies for a non-timeout reason
 If BLOCK dies for a non-timeout reason, C<finally> is still executed
 before the original exception is rethrown.
 
-Nested C<retry> and C<try_once> blocks maintain their own timeout state.
-If an outer timeout expires while an inner block is running, the outer
-timeout is preserved and rethrown through the inner scope.
+Nested C<retry> and C<try_once> blocks operate independently. An inner
+timeout only affects its own scope, while outer timeouts remain active.
+If an outer timeout expires during an inner block, it is propagated
+through the inner scope.
+
 
 =head2 ALRM BLOCK
 
@@ -441,6 +447,15 @@ C<tries>
 
 Unknown keys, duplicate keys, invalid timeout values, and invalid retry
 counts are rejected.
+
+=head1 COMPOSABILITY
+
+C<Try::ALRM> supports nested usage of C<retry> and C<try_once>. Each block
+maintains its own timeout context, allowing helper functions and inner
+operations to define their own time limits without interfering with
+outer control flow.
+
+When multiple timeouts are active, the soonest deadline is enforced.
 
 =head1 BUGS
 
