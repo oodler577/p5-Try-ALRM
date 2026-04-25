@@ -1,13 +1,18 @@
+.PHONY: clean test build release
+
 clean:
 	dzil clean
 
-test: clean
+test:
 	dzil test
 
-release: clean
-	dzil build 
-	mv -vf *.tar.gz ./releases/ 
+build: clean
+	dzil build
+	mkdir -p releases
+	mv -vf $$(ls -t *.tar.gz | head -n 1) releases/
+
+release: build
 	dzil clean
-	git add ./releases/*.tar.gz
+	git add releases/*.tar.gz
 	git status
-	@echo "tag and push ... "
+	@echo "tag and push ..."
