@@ -5,7 +5,7 @@ package Try::ALRM;
 
 # ABSTRACT: Structured retry and timeout handling using CORE::alarm
 
-our $VERSION = q{1.03};
+our $VERSION = q{1.04};
 
 use Exporter qw/import/;
 use Scalar::Util qw/refaddr/;
@@ -365,7 +365,7 @@ throwing an exception.
 If both the main block and C<finally> die, the main block's exception is
 preserved and rethrown.
 
-=head2 timeout INT
+=head2 timeout => INT
 
 Getter/setter for the default timeout in seconds.
 
@@ -375,7 +375,7 @@ May also be supplied as a trailing modifier:
 
 The value must be an integer greater than or equal to 1.
 
-=head2 tries INT
+=head2 tries => INT
 
 Getter/setter for the default retry limit.
 
