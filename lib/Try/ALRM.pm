@@ -5,7 +5,7 @@ package Try::ALRM;
 
 # ABSTRACT: Structured retry and timeout handling using CORE::alarm
 
-our $VERSION = q{1.04};
+our $VERSION = q{1.05};
 
 use Exporter qw/import/;
 use Scalar::Util qw/refaddr/;
@@ -461,7 +461,7 @@ When multiple timeouts are active, the soonest deadline is enforced.
 
 C<Try::ALRM> provides timeout and retry behavior, but B<does not catch
 ordinary exceptions> (C<die>). To handle exceptions, wrap your code with
-L<Try::Tiny> or Perl’s built-in C<try> feature.
+L<Try::Tiny> or Perl's built-in C<try> feature.
 
 Because C<Try::Alarm> is orthogonal to C<try>, however it is provided,
 below show examples of using C<Try::ALRM>'s functionality with general
